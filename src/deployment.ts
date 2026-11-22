@@ -1,3 +1,28 @@
+export function createEnvironmentSetupScript(guide: string, environmentName: string): string {
+  const payload = encodeBase64(guide)
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+printf 'Linux Desktop Forge setup guide for ${environmentName}\\n' >&2
+printf 'This script writes no configuration files. It validates and prints a reviewable setup guide.\\n' >&2
+
+if [[ "$#" -ne 0 && "$1" != "--dry-run" ]]; then
+    printf 'Usage: %s [--dry-run]\\n' "$0" >&2
+    exit 2
+fi
+
+target_dir="\${XDG_CONFIG_HOME:-$HOME/.config}"
+tmp="$(mktemp "\${TMPDIR:-/tmp}/linux-desktop-guide.XXXXXX")"
+trap 'rm -f -- "$tmp"' EXIT
+base64 --decode > "$tmp" <<'LINUX_DESKTOP_GUIDE_BASE64'
+${payload}
+LINUX_DESKTOP_GUIDE_BASE64
+
+printf 'Review the generated guide before changing ${environmentName} settings.\\n'
+cat -- "$tmp"
+`
+}
+
 function encodeBase64(value: string): string {
   const bytes = new TextEncoder().encode(value)
   let binary = ''

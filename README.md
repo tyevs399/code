@@ -1,8 +1,8 @@
-# AweForge
+# Linux Desktop Forge
 
-**Design your AwesomeWM desktop.**
+**Design your Linux desktop.**
 
-A visual studio for configuring, previewing, and safely deploying AwesomeWM. Arrange built-in widgets, tune your desktop, and export a readable `rc.lua`.
+A visual studio for planning and exporting setups across desktop environments and window managers.
 
 ## Run locally
 

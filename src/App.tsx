@@ -6,6 +6,7 @@ import {
   TERMINAL_OPTIONS,
   WIDGET_CATALOG,
   generateLua,
+  generateDesktopGuide,
   normalizeAwesomeConfig,
   validateConfig,
   type AwesomeConfig,
@@ -15,7 +16,8 @@ import {
   type WidgetConfig,
   type WidgetType,
 } from './model'
-import { createDeploymentScript } from './deployment'
+import { DESKTOP_ENVIRONMENTS, type DesktopEnvironmentId } from './environments'
+import { createDeploymentScript, createEnvironmentSetupScript } from './deployment'
 import {
   PROFILE_STORE_VERSION,
   MAX_PROFILE_IMPORT_BYTES,
@@ -90,7 +92,7 @@ const navigation: { id: Page; label: string; icon: string }[] = [
   { id: 'keybindings', label: 'Keys', icon: '⌘' },
   { id: 'appearance', label: 'Appearance', icon: '03' },
   { id: 'profiles', label: 'Profiles', icon: '↔' },
-  { id: 'code', label: 'Lua config', icon: '</>' },
+  { id: 'code', label: 'Configuration', icon: '</>' },
   { id: 'deploy', label: 'Deploy', icon: '04' },
 ]
 
@@ -98,12 +100,12 @@ const pageCopy: Record<Page, { eyebrow: string; title: string; description: stri
   desktop: {
     eyebrow: 'YOUR WORKSPACE',
     title: 'Desktop setup',
-    description: 'Shape the foundation of your AwesomeWM setup.',
+    description: 'Shape the foundation of your Linux desktop setup.',
   },
   prebuilt: {
     eyebrow: 'START WITH A COMMUNITY BUILD',
     title: 'Browse community configs',
-    description: 'Discover AwesomeWM builds and preview an editable starter inspired by each.',
+    description: 'Discover Linux desktop builds and preview an editable starter inspired by each.',
   },
   widgets: {
     eyebrow: 'YOUR STATUS BAR',
@@ -127,8 +129,8 @@ const pageCopy: Record<Page, { eyebrow: string; title: string; description: stri
   },
   code: {
     eyebrow: 'READY TO TAKE WITH YOU',
-    title: 'Your rc.lua',
-    description: 'A readable AwesomeWM configuration, generated from your setup.',
+    title: 'Your desktop configuration',
+    description: 'A readable environment-specific configuration or setup guide, generated from your choices.',
   },
   deploy: {
     eyebrow: 'INSTALL WITH CARE',
@@ -231,6 +233,8 @@ function loadWidgetPresets(): WidgetPreset[] {
         typeof (preset as WidgetPreset).name === 'string' &&
         Array.isArray((preset as WidgetPreset).widgets) &&
         (preset as WidgetPreset).widgets.every((widget) =>
+          typeof widget === 'object' &&
+          widget !== null &&
           typeof widget.id === 'string' &&
           Object.hasOwn(WIDGET_CATALOG, widget.type) &&
           typeof widget.enabled === 'boolean',
@@ -381,11 +385,20 @@ function App() {
   const [initialProfiles] = useState(loadSavedProfiles)
   const [initialRecovery] = useState(loadRecoveryDraft)
   const [config, setConfig] = useState(initialState.config)
+  const [environmentId, setEnvironmentId] = useState<DesktopEnvironmentId>(() => {
+    const stored = window.localStorage.getItem('linux-desktop-forge-environment')
+    return DESKTOP_ENVIRONMENTS.some((environment) => environment.id === stored)
+      ? stored as DesktopEnvironmentId
+      : 'awesomewm'
+  })
+  const environment = DESKTOP_ENVIRONMENTS.find((item) => item.id === environmentId) ?? DESKTOP_ENVIRONMENTS[0]
   const [savedConfigJson, setSavedConfigJson] = useState(() => JSON.stringify(initialState.config))
   const [draftSavedConfigJson, setDraftSavedConfigJson] = useState(() => JSON.stringify(initialState.config))
   const [savedAt, setSavedAt] = useState(() => {
     const stored = window.localStorage.getItem('awesome-config-studio-saved-at')
-    return stored ? new Date(stored) : null
+    if (!stored) return null
+    const parsed = new Date(stored)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
   })
   const [pastConfigs, setPastConfigs] = useState<AwesomeConfig[]>([])
   const [futureConfigs, setFutureConfigs] = useState<AwesomeConfig[]>([])
@@ -406,10 +419,21 @@ function App() {
   const profileFileInput = useRef<HTMLInputElement>(null)
   const configRef = useRef(config)
   const errors = useMemo(() => validateConfig(config), [config])
-  const lua = useMemo(() => (errors.length === 0 ? generateLua(config) : ''), [config, errors])
+  const lua = useMemo(
+    () => (errors.length === 0
+      ? environmentId === 'awesomewm'
+        ? generateLua(config)
+        : generateDesktopGuide(environment, config)
+      : ''),
+    [config, environment, environmentId, errors],
+  )
   const deploymentScript = useMemo(
-    () => (errors.length === 0 ? createDeploymentScript(lua) : ''),
-    [errors, lua],
+    () => (errors.length === 0
+      ? environmentId === 'awesomewm'
+        ? createDeploymentScript(lua)
+        : createEnvironmentSetupScript(lua, environment.name)
+      : ''),
+    [environment.name, environmentId, errors, lua],
   )
   const enabledWidgets = config.widgets.filter((widget) => widget.enabled)
   const selectedPreset =
@@ -475,6 +499,7 @@ function App() {
           'awesome-config-studio-recovery',
           JSON.stringify({ config, savedAt: savedAtValue.toISOString() }),
         )
+        window.localStorage.setItem('awesome-config-studio-saved-at', savedAtValue.toISOString())
         setDraftSavedConfigJson(JSON.stringify(config))
         setSavedAt(savedAtValue)
       } catch (error) {
@@ -846,8 +871,14 @@ function App() {
       setNotice({ kind: 'error', message: errors[0] })
       return
     }
-    downloadTextFile('rc.lua', lua)
-    setNotice({ kind: 'success', message: 'Your rc.lua file has been downloaded.' })
+    const filename = environmentId === 'awesomewm' ? 'rc.lua' : `${environmentId}-setup-guide.md`
+    downloadTextFile(filename, lua)
+    setNotice({
+      kind: 'success',
+      message: environmentId === 'awesomewm'
+        ? 'Your rc.lua file has been downloaded.'
+        : 'Your Linux desktop setup guide has been downloaded.',
+    })
   }
 
   async function copyConfig() {
@@ -880,7 +911,10 @@ function App() {
 
   async function copyDeploymentCommand(mode: '--dry-run' | '--restore-latest' | '--list-backups') {
     try {
-      await copyText(`bash deploy-awesome-config.sh ${mode}`)
+      const filename = environmentId === 'awesomewm'
+        ? 'deploy-awesome-config.sh'
+        : `deploy-${environmentId}-guide.sh`
+      await copyText(`bash ${filename} ${mode}`)
       setNotice({
         kind: 'success',
         message: mode === '--dry-run'
@@ -900,18 +934,21 @@ function App() {
       setNotice({ kind: 'error', message: errors[0] })
       return
     }
-    downloadTextFile('deploy-awesome-config.sh', deploymentScript)
+    downloadTextFile(
+      environmentId === 'awesomewm' ? 'deploy-awesome-config.sh' : `deploy-${environmentId}-guide.sh`,
+      deploymentScript,
+    )
     setNotice({ kind: 'success', message: 'Your deployment script has been downloaded.' })
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand" aria-label="AweForge, AwesomeWM configuration studio">
-          <span className="brand-mark">a.</span>
+        <div className="brand" aria-label="Linux Desktop Forge configuration studio">
+          <span className="brand-mark">l.</span>
           <span className="brand-name">
-            <strong>AweForge</strong>
-            <small>AWESOMEWM STUDIO</small>
+            <strong>Linux Desktop Forge</strong>
+            <small>DESKTOP STUDIO</small>
           </span>
         </div>
 
@@ -925,7 +962,9 @@ function App() {
               type="button"
             >
               <span className="nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
+              <span>{item.id === 'code'
+                ? environmentId === 'awesomewm' ? 'Lua config' : 'Setup guide'
+                : item.label}</span>
               {item.id === 'code' && <span className="nav-arrow">↗</span>}
             </button>
           ))}
@@ -934,8 +973,8 @@ function App() {
         <div className="sidebar-bottom">
           <div className="sidebar-status">
             <span className="status-dot" />
-            <span>AwesomeWM</span>
-            <span className="version-pill">v4.3+</span>
+            <span>{environment.name}</span>
+            <span className="version-pill">{environment.configFormat}</span>
           </div>
           <p>Made for a desktop<br />that feels like yours.</p>
         </div>
@@ -989,7 +1028,7 @@ function App() {
               onClick={downloadConfig}
               type="button"
             >
-              Export rc.lua
+              {environmentId === 'awesomewm' ? 'Export rc.lua' : 'Export setup guide'}
               <span className="button-symbol">↓</span>
             </button>
           </div>
@@ -1068,6 +1107,24 @@ function App() {
               >
                 Start from a community config <span>→</span>
               </button>
+
+              <label className="field-label" htmlFor="desktop-environment">Desktop environment or window manager</label>
+              <select
+                id="desktop-environment"
+                onChange={(event) => {
+                  const nextId = event.target.value as DesktopEnvironmentId
+                  setEnvironmentId(nextId)
+                  window.localStorage.setItem('linux-desktop-forge-environment', nextId)
+                }}
+                value={environmentId}
+              >
+                {DESKTOP_ENVIRONMENTS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} — {item.category}
+                  </option>
+                ))}
+              </select>
+              <p className="field-hint">{environment.description}</p>
 
               <label className="field-label" htmlFor="terminal">Terminal emulator</label>
               <select
@@ -1786,9 +1843,9 @@ function App() {
           <div className="code-page">
             <section className="code-card">
               <div className="code-toolbar">
-                <div className="file-tab"><span className="file-dot" /> rc.lua <span className="file-path">~/.config/awesome/</span></div>
+                <div className="file-tab"><span className="file-dot" /> {environmentId === 'awesomewm' ? 'rc.lua' : `${environmentId}-setup-guide.md`} <span className="file-path">{environment.targetPath}</span></div>
                 <div className="code-actions">
-                  <span className="code-language">LUA</span>
+                  <span className="code-language">{environment.configFormat.toUpperCase()}</span>
                   <button className="button button-quiet" onClick={copyConfig} type="button">Copy</button>
                   <button className="button button-primary" disabled={errors.length > 0} onClick={downloadConfig} type="button">Download</button>
                 </div>
@@ -1810,7 +1867,12 @@ function App() {
               <span className="install-number">!</span>
               <div>
                 <strong>Review before you replace your config</strong>
-                <p>Save a backup of your current <code>rc.lua</code>, then move the exported file to <code>~/.config/awesome/rc.lua</code> and restart AwesomeWM.</p>
+                <p>
+                  Save a backup before changing {environment.name}. Generated native configuration
+                  {environmentId === 'awesomewm'
+                    ? <> should be placed at <code>{environment.targetPath}</code>.</>
+                    : ' will vary by distribution and package; use the review guide first.'}
+                </p>
                 <button className="text-link" onClick={() => navigateTo('deploy')} type="button">
                   Create a deployment script <span>→</span>
                 </button>
@@ -1830,14 +1892,14 @@ function App() {
                 <span className="deploy-shield">!</span>
               </div>
               <p className="card-intro">
-                The downloaded Bash script includes your current <code>rc.lua</code>. Run a validation-only
-                dry run first, then confirm before installing. It also provides a guarded restore command.
+                The downloaded script contains your current setup. AwesomeWM installations include guarded
+                validation and restore commands; other environments receive a reviewable setup guide.
               </p>
               <div className="deployment-steps">
                 <div><span>01</span><strong>Preview</strong><small>--dry-run</small></div>
-                <div><span>02</span><strong>Confirm</strong><small>interactive prompt</small></div>
-                <div><span>03</span><strong>Back up</strong><small>timestamped rc.lua</small></div>
-                <div><span>04</span><strong>Restore</strong><small>--restore-latest</small></div>
+                <div><span>02</span><strong>{environmentId === 'awesomewm' ? 'Confirm' : 'Review'}</strong><small>{environmentId === 'awesomewm' ? 'interactive prompt' : environment.name}</small></div>
+                <div><span>03</span><strong>{environmentId === 'awesomewm' ? 'Back up' : 'Backup'}</strong><small>{environmentId === 'awesomewm' ? 'timestamped rc.lua' : 'native config'}</small></div>
+                <div><span>04</span><strong>{environmentId === 'awesomewm' ? 'Restore' : 'Apply'}</strong><small>{environmentId === 'awesomewm' ? '--restore-latest' : 'outside this app'}</small></div>
               </div>
               <div className="deployment-actions">
                 <button
@@ -1866,28 +1928,32 @@ function App() {
                 >
                   Copy dry-run command
                 </button>
-                <button
-                  className="button button-quiet"
-                  disabled={errors.length > 0}
-                  onClick={() => copyDeploymentCommand('--restore-latest')}
-                  type="button"
-                >
-                  Copy restore command
-                </button>
-                <button
-                  className="button button-quiet"
-                  onClick={() => copyDeploymentCommand('--list-backups')}
-                  type="button"
-                >
-                  Copy backup-list command
-                </button>
+                {environmentId === 'awesomewm' && (
+                  <>
+                    <button
+                      className="button button-quiet"
+                      disabled={errors.length > 0}
+                      onClick={() => copyDeploymentCommand('--restore-latest')}
+                      type="button"
+                    >
+                      Copy restore command
+                    </button>
+                    <button
+                      className="button button-quiet"
+                      onClick={() => copyDeploymentCommand('--list-backups')}
+                      type="button"
+                    >
+                      Copy backup-list command
+                    </button>
+                  </>
+                )}
               </div>
             </section>
 
             <section className="code-card deploy-script-card">
               <div className="code-toolbar">
                 <div className="file-tab">
-                  <span className="file-dot" /> deploy-awesome-config.sh
+                  <span className="file-dot" /> {environmentId === 'awesomewm' ? 'deploy-awesome-config.sh' : `deploy-${environmentId}-guide.sh`}
                   <span className="file-path">self-contained</span>
                 </div>
                 <span className="code-language">BASH</span>
@@ -1911,14 +1977,23 @@ function App() {
               <div>
                 <strong>Nothing runs from this page</strong>
                 <p>
-                  Review the downloaded script first. Run <code>bash deploy-awesome-config.sh --dry-run</code>
-                  {' '}to validate without changing configuration files, or run
-                  {' '}<code>bash deploy-awesome-config.sh</code> to install.                   To list saved backups, run <code>bash deploy-awesome-config.sh --list-backups</code>.
-                  Restore the latest with <code>bash deploy-awesome-config.sh --restore-latest</code>, or choose one
-                  with <code>bash deploy-awesome-config.sh --restore-backup rc.lua.backup.TIMESTAMP.ID</code>.
-                  Restore validates the backup, asks for confirmation, saves the current file, and replaces atomically.
-                  The script targets <code>$XDG_CONFIG_HOME/awesome/rc.lua</code> or
-                  {' '}<code>~/.config/awesome/rc.lua</code> and never restarts AwesomeWM.
+                  {environmentId === 'awesomewm' ? (
+                    <>
+                      Review the downloaded script first. Run <code>bash deploy-awesome-config.sh --dry-run</code>
+                      {' '}to validate without changing configuration files, or run
+                      {' '}<code>bash deploy-awesome-config.sh</code> to install. To list backups, run
+                      {' '}<code>bash deploy-awesome-config.sh --list-backups</code>. Restore with
+                      {' '}<code>bash deploy-awesome-config.sh --restore-latest</code>. The script targets
+                      {' '}<code>$XDG_CONFIG_HOME/awesome/rc.lua</code> or <code>~/.config/awesome/rc.lua</code>
+                      {' '}and never restarts AwesomeWM.
+                    </>
+                  ) : (
+                    <>
+                      The generated script prints a review guide for {environment.name}; it does not modify
+                      files or install packages. Back up <code>{environment.targetPath}</code> and apply the
+                      native settings manually for this environment.
+                    </>
+                  )}
                 </p>
               </div>
             </div>

@@ -3,13 +3,26 @@ import {
   DEFAULT_CONFIG,
   TERMINAL_OPTIONS,
   generateLua,
+  generateDesktopGuide,
   isAwesomeConfig,
   luaString,
   normalizeAwesomeConfig,
   validateConfig,
 } from './model'
+import { DESKTOP_ENVIRONMENTS } from './environments'
 
 describe('AwesomeWM config model', () => {
+  it('generates a review guide for non-Awesome desktop environments', () => {
+    const sway = DESKTOP_ENVIRONMENTS.find((environment) => environment.id === 'sway')
+    expect(sway).toBeDefined()
+    if (!sway) return
+
+    const guide = generateDesktopGuide(sway, DEFAULT_CONFIG)
+    expect(guide).toContain('Environment: Sway')
+    expect(guide).toContain('~/.config/sway/config')
+    expect(guide).toContain('Terminal: xterm')
+  })
+
   it('accepts and generates the default setup', () => {
     expect(isAwesomeConfig(DEFAULT_CONFIG)).toBe(true)
     expect(validateConfig(DEFAULT_CONFIG)).toEqual([])

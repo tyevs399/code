@@ -1,3 +1,5 @@
+import type { DesktopEnvironment } from './environments'
+
 export type LayoutName = 'tile' | 'floating' | 'fair'
 export type BarPosition = 'top' | 'bottom'
 export type KeybindingAction =
@@ -318,6 +320,43 @@ function keybindingExpression(keybinding: KeybindingConfig): string {
 
   return `    awful.key(${modifiers}, ${luaString(keybinding.key)}, function() ${action} end,
         { description = ${luaString(KEYBINDING_ACTIONS[keybinding.action])}, group = "custom" })`
+}
+
+export function generateDesktopGuide(environment: DesktopEnvironment, config: AwesomeConfig): string {
+  const enabled = config.widgets.filter((widget) => widget.enabled).map((widget) => WIDGET_CATALOG[widget.type].name)
+  return `# Linux Desktop Forge setup guide
+
+Environment: ${environment.name}
+Category: ${environment.category}
+Target: ${environment.targetPath}
+
+## Shared choices
+- Terminal: ${config.terminal}
+- Modifier: ${config.modkey}
+- Layout: ${config.layout}
+- Window gaps: ${config.gaps}px
+- Status bar: ${config.barPosition}
+- Clock: ${config.clockFormat}
+- Wallpaper: ${config.wallpaper || 'None selected'}
+- Accent: ${config.accentColor}
+- Background: ${config.backgroundColor}
+- Widgets: ${enabled.join(', ') || 'None'}
+
+## Apply
+This environment does not share AwesomeWM's Lua format. Review and translate the choices above
+into ${environment.name}'s native settings. Restart or log out only after creating a backup.
+
+${environment.category === 'Desktop environment'
+  ? 'Open the desktop settings application and apply the appearance, panels, wallpaper, keyboard, and layout choices listed above.'
+  : `Create or edit ${environment.targetPath}. Package names, key syntax, and service names vary by distribution.`}
+
+## Verification
+- Confirm the terminal launches.
+- Confirm the selected modifier key and keybindings.
+- Confirm gaps and layout behavior.
+- Confirm enabled widgets and system integrations are available.
+- Back up the native configuration before making changes.
+`
 }
 
 function widgetExpression(widget: WidgetConfig, clockFormat: string): string {

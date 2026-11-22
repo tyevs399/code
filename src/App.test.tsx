@@ -15,6 +15,17 @@ afterEach(() => {
 })
 
 describe('configuration studio interactions', () => {
+  it('offers Linux desktop and window manager environments', () => {
+    render(<App />)
+
+    const environment = screen.getByLabelText('Desktop environment or window manager')
+    fireEvent.change(environment, { target: { value: 'sway' } })
+
+    expect(screen.getByText(/Wayland compositor compatible with i3 workflows/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Setup guide/ }))
+    expect(screen.getByText(/Linux Desktop Forge setup guide/)).toBeTruthy()
+  })
+
   it('auto-saves valid draft changes and records the save timestamp', async () => {
     render(<App />)
 
