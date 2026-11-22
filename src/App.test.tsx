@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
@@ -15,6 +15,21 @@ afterEach(() => {
 })
 
 describe('configuration studio interactions', () => {
+  it('auto-saves valid draft changes and records the save timestamp', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Floating/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Draft saved')).toBeTruthy()
+    }, { timeout: 1500 })
+
+    const recovery = JSON.parse(window.localStorage.getItem('awesome-config-studio-recovery') ?? '{}')
+    expect(recovery.config.layout).toBe('floating')
+    expect(recovery.savedAt).toBeTruthy()
+    expect(screen.getByText(/Last saved/)).toBeTruthy()
+  })
+
   it('shows dirty state and supports undoing a layout change', () => {
     render(<App />)
 
@@ -91,6 +106,20 @@ describe('configuration studio interactions', () => {
     fireEvent.change(search, { target: { value: 'no matching config' } })
     fireEvent.click(screen.getByRole('button', { name: /Clear filters/ }))
     expect(screen.getByText(/11 of 11 curated entries/)).toBeTruthy()
+  })
+
+  it('applies and saves reusable widget presets', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /Widgets/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Minimal widget preset' }))
+    expect(screen.getByText('4')).toBeTruthy()
+
+    const presetName = screen.getByLabelText('Widget preset name')
+    fireEvent.change(presetName, { target: { value: 'My bar' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save current layout' }))
+
+    expect(screen.getByText('My bar')).toBeTruthy()
   })
 
   it('searches profiles without hiding the currently selected profile', () => {

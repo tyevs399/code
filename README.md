@@ -24,7 +24,12 @@ npm run dev
 - **Lua config** shows the generated file and lets you copy or download `rc.lua`.
 - **Deploy** creates a self-contained Bash script with the current configuration embedded.
 - **Undo / Redo** keeps the latest 50 configuration edits reversible.
-- **Save setup** stores the current setup in this browser's local storage.
+- **Save setup** stores the current setup in this browser's local storage. Valid edits also
+  auto-save after a short pause, and the top bar shows the last-saved time.
+- **Widget presets** provide minimal, developer, and power/network bar layouts, plus custom
+  layouts saved in this browser.
+- **Draft recovery** keeps a separate auto-saved recovery copy and offers to restore or discard it
+  if it differs from the explicitly saved setup.
 
 The generated deployment script supports three modes:
 

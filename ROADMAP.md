@@ -23,7 +23,7 @@ AweForge should become a dependable visual workflow for creating, reviewing, bac
 ### Unsaved and reversible editing
 - [x] Track dirty configuration state and warn before navigation or page exit.
 - [x] Show an explicit saved or unsaved state in the top bar.
-- [ ] Add auto-save or an explicit save draft mode.
+- [x] Add auto-save or an explicit save draft mode.
 - [ ] Improve undo/redo granularity.
 - [x] Expose undo/redo keyboard shortcuts.
 - [x] Preserve undo/redo history across page navigation.
@@ -58,7 +58,7 @@ AweForge should become a dependable visual workflow for creating, reviewing, bac
 - [x] Add a searchable community configuration browser.
 - [x] Add editorial direction filters and name/popularity sorting to the community browser.
 - [ ] Add widget region ordering and drag-and-drop arrangement.
-- [ ] Add reusable widget presets.
+- [x] Add reusable widget presets.
 
 ### Prebuilt configurations
 - [ ] Expand preset coverage while keeping source attribution.

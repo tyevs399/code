@@ -223,6 +223,42 @@
   color: #6f7e62;
 }
 
+.last-saved {
+  min-width: 96px;
+  color: #9a9fa7;
+  font-size: 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.recovery-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -12px 0 18px;
+  padding: 12px;
+  background: #f8faf4;
+  border: 1px solid #dce7d1;
+  border-radius: 8px;
+}
+
+.recovery-banner div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.recovery-banner strong {
+  color: #536b43;
+  font-size: 11px;
+}
+
+.recovery-banner span {
+  color: #81898f;
+  font-size: 9px;
+}
+
 .button {
   display: inline-flex;
   min-height: 40px;
@@ -1576,6 +1612,77 @@
   gap: 16px;
 }
 
+.widget-presets-card {
+  margin-bottom: 16px;
+}
+
+.widget-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.widget-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  background: #fcfcfc;
+  border: 1px solid #eceef0;
+  border-radius: 7px;
+}
+
+.widget-preset > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.widget-preset strong {
+  color: #4a5159;
+  font-size: 10px;
+}
+
+.widget-preset span {
+  color: #969da4;
+  font-size: 9px;
+}
+
+.widget-preset .button {
+  min-height: 32px;
+  padding: 0 9px;
+}
+
+.widget-preset-save {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.widget-preset-save input {
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 9px 10px;
+  color: #75816b;
+  background: #f6f8f3;
+  border: 1px solid #e7ecdf;
+  border-radius: 7px;
+  font-size: 9px;
+}
+
+.profile-comparison strong {
+  color: #5f7053;
+}
+
 .widget-list-card,
 .widget-library-card {
   min-width: 0;
@@ -2237,6 +2344,10 @@
   .community-config-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .widget-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 800px) {
@@ -2306,6 +2417,16 @@
 }
 
 @media (max-width: 680px) {
+  .widget-preset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .widget-preset-save,
+  .recovery-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .community-config-grid {
     grid-template-columns: 1fr;
   }

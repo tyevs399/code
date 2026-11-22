@@ -40,6 +40,49 @@ type Page =
   | 'deploy'
 type Notice = { kind: 'success' | 'error'; message: string } | null
 
+type WidgetPreset = {
+  id: string
+  name: string
+  widgets: WidgetConfig[]
+}
+
+const BUILT_IN_WIDGET_PRESETS: WidgetPreset[] = [
+  {
+    id: 'minimal',
+    name: 'Minimal',
+    widgets: [
+      { id: 'preset-taglist', type: 'taglist', enabled: true },
+      { id: 'preset-tasklist', type: 'tasklist', enabled: true },
+      { id: 'preset-clock', type: 'textclock', enabled: true },
+      { id: 'preset-layout', type: 'layoutbox', enabled: true },
+    ],
+  },
+  {
+    id: 'developer',
+    name: 'Developer',
+    widgets: [
+      { id: 'preset-taglist', type: 'taglist', enabled: true },
+      { id: 'preset-tasklist', type: 'tasklist', enabled: true },
+      { id: 'preset-cpu', type: 'cpu', enabled: true },
+      { id: 'preset-memory', type: 'memory', enabled: true },
+      { id: 'preset-clock', type: 'textclock', enabled: true },
+      { id: 'preset-layout', type: 'layoutbox', enabled: true },
+    ],
+  },
+  {
+    id: 'power',
+    name: 'Power and network',
+    widgets: [
+      { id: 'preset-taglist', type: 'taglist', enabled: true },
+      { id: 'preset-tasklist', type: 'tasklist', enabled: true },
+      { id: 'preset-battery', type: 'battery', enabled: true },
+      { id: 'preset-volume', type: 'volume', enabled: true },
+      { id: 'preset-network', type: 'network', enabled: true },
+      { id: 'preset-clock', type: 'textclock', enabled: true },
+    ],
+  },
+]
+
 const navigation: { id: Page; label: string; icon: string }[] = [
   { id: 'desktop', label: 'Desktop', icon: '01' },
   { id: 'prebuilt', label: 'Community', icon: 'P' },
@@ -174,6 +217,45 @@ function loadSavedProfiles(): { profiles: ConfigProfile[]; notice: Notice } {
   }
 }
 
+function loadWidgetPresets(): WidgetPreset[] {
+    try {
+      const stored = window.localStorage.getItem('awesome-config-studio-widget-presets')
+      if (!stored) return []
+      const parsed: unknown = JSON.parse(stored)
+      if (!Array.isArray(parsed)) return []
+
+      return parsed.filter((preset): preset is WidgetPreset =>
+        typeof preset === 'object' &&
+        preset !== null &&
+        typeof (preset as WidgetPreset).id === 'string' &&
+        typeof (preset as WidgetPreset).name === 'string' &&
+        Array.isArray((preset as WidgetPreset).widgets) &&
+        (preset as WidgetPreset).widgets.every((widget) =>
+          typeof widget.id === 'string' &&
+          Object.hasOwn(WIDGET_CATALOG, widget.type) &&
+          typeof widget.enabled === 'boolean',
+        ),
+      )
+    } catch {
+      return []
+    }
+}
+
+function loadRecoveryDraft(): { config: AwesomeConfig; savedAt: Date } | null {
+    try {
+      const stored = window.localStorage.getItem('awesome-config-studio-recovery')
+      if (!stored) return null
+      const parsed = JSON.parse(stored) as { config?: unknown; savedAt?: unknown }
+      if (typeof parsed.savedAt !== 'string') return null
+      const config = normalizeAwesomeConfig(parsed.config)
+      const savedAt = new Date(parsed.savedAt)
+      if (!config || Number.isNaN(savedAt.getTime())) return null
+      return { config, savedAt }
+    } catch {
+      return null
+  }
+}
+
 function newWidgetId(): string {
   return `widget-${createId()}`
 }
@@ -268,13 +350,48 @@ function formatClockPreview(format: string, date: Date): string {
   return format.replace(/%([aAbBdeHImMpSwyY%])/g, (_, token: string) => replacements[token] ?? '')
 }
 
+function formatSavedAt(savedAt: Date | null): string {
+  if (!savedAt || Number.isNaN(savedAt.getTime())) return 'Not saved yet'
+  return `Last saved ${savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+}
+
+function describeConfigDifferences(current: AwesomeConfig, reference: AwesomeConfig): string[] {
+  const differences: string[] = []
+  const labels: [keyof AwesomeConfig, string][] = [
+    ['terminal', 'Terminal'],
+    ['modkey', 'Modifier key'],
+    ['layout', 'Default layout'],
+    ['gaps', 'Window gaps'],
+    ['barPosition', 'Status bar position'],
+    ['clockFormat', 'Clock format'],
+    ['wallpaper', 'Wallpaper'],
+    ['accentColor', 'Accent color'],
+    ['backgroundColor', 'Background color'],
+  ]
+  for (const [key, label] of labels) {
+    if (JSON.stringify(current[key]) !== JSON.stringify(reference[key])) differences.push(label)
+  }
+  if (JSON.stringify(current.widgets) !== JSON.stringify(reference.widgets)) differences.push('Widgets')
+  if (JSON.stringify(current.keybindings) !== JSON.stringify(reference.keybindings)) differences.push('Keybindings')
+  return differences
+}
+
 function App() {
   const [initialState] = useState(loadSavedConfig)
   const [initialProfiles] = useState(loadSavedProfiles)
+  const [initialRecovery] = useState(loadRecoveryDraft)
   const [config, setConfig] = useState(initialState.config)
   const [savedConfigJson, setSavedConfigJson] = useState(() => JSON.stringify(initialState.config))
+  const [draftSavedConfigJson, setDraftSavedConfigJson] = useState(() => JSON.stringify(initialState.config))
+  const [savedAt, setSavedAt] = useState(() => {
+    const stored = window.localStorage.getItem('awesome-config-studio-saved-at')
+    return stored ? new Date(stored) : null
+  })
   const [pastConfigs, setPastConfigs] = useState<AwesomeConfig[]>([])
   const [futureConfigs, setFutureConfigs] = useState<AwesomeConfig[]>([])
+  const [widgetPresets, setWidgetPresets] = useState(loadWidgetPresets)
+  const [widgetPresetName, setWidgetPresetName] = useState('')
+  const [recoveryDraft, setRecoveryDraft] = useState(initialRecovery)
   const [profiles, setProfiles] = useState(initialProfiles.profiles)
   const [selectedProfileId, setSelectedProfileId] = useState('')
   const [profileName, setProfileName] = useState('')
@@ -333,6 +450,10 @@ function App() {
     JSON.stringify(selectedProfile.config) !== JSON.stringify(config)
   const copy = pageCopy[activePage]
   const isDirty = JSON.stringify(config) !== savedConfigJson
+  const isDraftSaved = JSON.stringify(config) === draftSavedConfigJson
+  const profileDifferences = selectedProfile
+    ? describeConfigDifferences(config, selectedProfile.config)
+    : []
 
   useEffect(() => {
     if (!isDirty) return
@@ -343,6 +464,27 @@ function App() {
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [isDirty])
+
+  useEffect(() => {
+    if (!isDirty || errors.length > 0) return
+
+    const timeout = window.setTimeout(() => {
+      try {
+        const savedAtValue = new Date()
+        window.localStorage.setItem(
+          'awesome-config-studio-recovery',
+          JSON.stringify({ config, savedAt: savedAtValue.toISOString() }),
+        )
+        setDraftSavedConfigJson(JSON.stringify(config))
+        setSavedAt(savedAtValue)
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        setNotice({ kind: 'error', message: `Could not auto-save your setup: ${reason}` })
+      }
+    }, 750)
+
+    return () => window.clearTimeout(timeout)
+  }, [config, errors, isDirty])
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
@@ -615,6 +757,55 @@ function App() {
     })
   }
 
+  function persistWidgetPresets(nextPresets: WidgetPreset[]) {
+    try {
+      window.localStorage.setItem('awesome-config-studio-widget-presets', JSON.stringify(nextPresets))
+      setWidgetPresets(nextPresets)
+      return true
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      setNotice({ kind: 'error', message: `Could not save widget preset: ${reason}` })
+      return false
+    }
+  }
+
+  function saveWidgetPreset() {
+    const name = widgetPresetName.trim()
+    if (!name || name.length > 40) {
+      setNotice({ kind: 'error', message: 'Widget preset name must be between 1 and 40 characters.' })
+      return
+    }
+
+    const preset: WidgetPreset = {
+      id: `widget-preset-${createId()}`,
+      name,
+      widgets: config.widgets.map((widget) => ({ ...widget, id: newWidgetId() })),
+    }
+    if (persistWidgetPresets([...widgetPresets, preset])) {
+      setWidgetPresetName('')
+      setNotice({ kind: 'success', message: `Widget preset "${name}" saved.` })
+    }
+  }
+
+  function applyWidgetPreset(preset: WidgetPreset) {
+    commitConfig((current) => ({
+      ...current,
+      widgets: preset.widgets.map((widget) => ({
+        ...widget,
+        id: newWidgetId(),
+      })),
+    }))
+    setNotice({ kind: 'success', message: `Widget preset "${preset.name}" applied.` })
+  }
+
+  function deleteWidgetPreset(id: string) {
+    const preset = widgetPresets.find((item) => item.id === id)
+    if (!preset) return
+    if (!window.confirm(`Delete the widget preset "${preset.name}"?`) ||
+      !persistWidgetPresets(widgetPresets.filter((item) => item.id !== id))) return
+    setNotice({ kind: 'success', message: `Widget preset "${preset.name}" deleted.` })
+  }
+
   function saveConfig() {
     if (errors.length > 0) {
       setNotice({ kind: 'error', message: errors[0] })
@@ -622,13 +813,32 @@ function App() {
     }
 
     try {
+      const savedAtValue = new Date()
       window.localStorage.setItem('awesome-config-studio', JSON.stringify(config))
+      window.localStorage.setItem('awesome-config-studio-saved-at', savedAtValue.toISOString())
+      window.localStorage.removeItem('awesome-config-studio-recovery')
       setSavedConfigJson(JSON.stringify(config))
+      setDraftSavedConfigJson(JSON.stringify(config))
+      setSavedAt(savedAtValue)
+      setRecoveryDraft(null)
       setNotice({ kind: 'success', message: 'Setup saved in this browser.' })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       setNotice({ kind: 'error', message: `Could not save your setup: ${reason}` })
     }
+  }
+
+  function restoreRecoveryDraft() {
+    if (!recoveryDraft) return
+    commitConfig(() => recoveryDraft.config)
+    setRecoveryDraft(null)
+    setNotice({ kind: 'success', message: 'Recovered draft restored.' })
+  }
+
+  function discardRecoveryDraft() {
+    window.localStorage.removeItem('awesome-config-studio-recovery')
+    setRecoveryDraft(null)
+    setNotice({ kind: 'success', message: 'Recovered draft discarded.' })
   }
 
   function downloadConfig() {
@@ -742,11 +952,13 @@ function App() {
             <span
               className={`save-state ${(selectedProfile ? isSelectedProfileDirty : isDirty) ? 'dirty' : 'saved'}`}
               role="status"
+              title={formatSavedAt(savedAt)}
             >
               {selectedProfile
                 ? isSelectedProfileDirty ? 'Profile not saved' : 'Profile saved'
-                : isDirty ? 'Draft not saved' : 'Draft saved'}
+                : isDraftSaved ? 'Draft saved' : 'Draft not saved'}
             </span>
+            <span className="last-saved" role="status">{formatSavedAt(savedAt)}</span>
             <button
               aria-label="Undo configuration change"
               className="button button-quiet history-button"
@@ -782,6 +994,24 @@ function App() {
             </button>
           </div>
         </header>
+
+        {recoveryDraft &&
+          JSON.stringify(recoveryDraft.config) !== savedConfigJson && (
+            <div className="recovery-banner" role="status">
+              <div>
+                <strong>Recovered draft available</strong>
+                <span>
+                  An auto-saved setup from {recoveryDraft.savedAt.toLocaleString()} differs from the explicit save.
+                </span>
+              </div>
+              <button className="button button-primary" onClick={restoreRecoveryDraft} type="button">
+                Restore draft
+              </button>
+              <button className="button button-quiet" onClick={discardRecoveryDraft} type="button">
+                Discard
+              </button>
+            </div>
+          )}
 
         {notice && (
           <div
@@ -1112,6 +1342,70 @@ function App() {
 
         {activePage === 'widgets' && (
           <div className="widgets-page">
+            <section className="settings-card widget-presets-card">
+              <div className="card-heading">
+                <div>
+                  <div className="section-kicker">REUSABLE BAR LAYOUTS</div>
+                  <h2>Widget presets</h2>
+                </div>
+                <span className="step-number">{(BUILT_IN_WIDGET_PRESETS.length + widgetPresets.length).toString().padStart(2, '0')}</span>
+              </div>
+              <div className="widget-preset-grid">
+                {BUILT_IN_WIDGET_PRESETS.map((preset) => (
+                  <article className="widget-preset" key={preset.id}>
+                    <div>
+                      <strong>{preset.name}</strong>
+                      <span>{preset.widgets.filter((widget) => widget.enabled).length} widgets</span>
+                    </div>
+                    <button
+                      aria-label={`Apply ${preset.name} widget preset`}
+                      className="button button-quiet"
+                      onClick={() => applyWidgetPreset(preset)}
+                      type="button"
+                    >
+                      Apply
+                    </button>
+                  </article>
+                ))}
+                {widgetPresets.map((preset) => (
+                  <article className="widget-preset custom" key={preset.id}>
+                    <div>
+                      <strong>{preset.name}</strong>
+                      <span>{preset.widgets.filter((widget) => widget.enabled).length} widgets</span>
+                    </div>
+                    <button
+                      aria-label={`Apply ${preset.name} widget preset`}
+                      className="button button-quiet"
+                      onClick={() => applyWidgetPreset(preset)}
+                      type="button"
+                    >
+                      Apply
+                    </button>
+                    <button
+                      aria-label={`Delete ${preset.name} widget preset`}
+                      className="remove-widget"
+                      onClick={() => deleteWidgetPreset(preset.id)}
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </article>
+                ))}
+              </div>
+              <div className="widget-preset-save">
+                <label className="visually-hidden" htmlFor="widget-preset-name">Widget preset name</label>
+                <input
+                  id="widget-preset-name"
+                  maxLength={40}
+                  onChange={(event) => setWidgetPresetName(event.target.value)}
+                  placeholder="Name this widget layout"
+                  value={widgetPresetName}
+                />
+                <button className="button button-quiet" onClick={saveWidgetPreset} type="button">
+                  Save current layout
+                </button>
+              </div>
+            </section>
             <div className="widget-columns">
               <section className="settings-card widget-list-card">
                 <div className="card-heading">
@@ -1417,6 +1711,14 @@ function App() {
                     : 'This working setup matches the saved profile.'
                   : 'This is a working setup. Save it as a named profile to keep a separate copy.'}
               </p>
+              {selectedProfile && (
+                <div className="profile-comparison" role="status">
+                  <strong>{profileDifferences.length === 0 ? 'No differences' : `${profileDifferences.length} sections differ`}</strong>
+                  {profileDifferences.length > 0 && (
+                    <span>{profileDifferences.join(' · ')}</span>
+                  )}
+                </div>
+              )}
               <div className="profile-actions">
                 <button className="button button-primary" onClick={saveProfile} type="button">
                   Save profile
