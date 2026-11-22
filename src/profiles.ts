@@ -6,7 +6,8 @@ import {
 } from './model'
 
 export const PROFILE_STORE_VERSION = 1
-export const PROFILE_FILE_FORMAT = 'awesome-config-studio-profile'
+export const PROFILE_FILE_FORMAT = 'linux-desktop-forge-profile'
+export const LEGACY_PROFILE_FILE_FORMAT = 'awesome-config-studio-profile'
 export const MAX_PROFILE_IMPORT_BYTES = 1_048_576
 
 export interface ConfigProfile {
@@ -93,7 +94,7 @@ export function parseProfileImport(text: string): ImportedProfile {
 
   if (
     !isRecord(value) ||
-    value.format !== PROFILE_FILE_FORMAT ||
+    (value.format !== PROFILE_FILE_FORMAT && value.format !== LEGACY_PROFILE_FILE_FORMAT) ||
     value.version !== PROFILE_STORE_VERSION ||
     typeof value.name !== 'string' ||
     !value.name.trim() ||
@@ -103,7 +104,7 @@ export function parseProfileImport(text: string): ImportedProfile {
   }
 
   const config = normalizeAwesomeConfig(value.config)
-  if (!config) throw new Error('Profile contains an invalid AwesomeWM configuration.')
+  if (!config) throw new Error('Profile contains an invalid Linux desktop configuration.')
 
   return { name: value.name.trim(), config }
 }

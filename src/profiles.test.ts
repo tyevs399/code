@@ -34,7 +34,7 @@ describe('portable profiles', () => {
           config: { ...DEFAULT_CONFIG, gaps: 99 },
         }),
       ),
-    ).toThrow('invalid AwesomeWM configuration')
+    ).toThrow('invalid Linux desktop configuration')
   })
 
   it('validates stored profile IDs and names', () => {

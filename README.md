@@ -16,12 +16,14 @@ npm run dev
 ## Use the builder
 
 - **Desktop** configures the terminal, modifier key, default layout, window gaps, and bar position.
-- **Community** browses and searches curated AwesomeWM builds by name, source, and features. Select a card to preview its editable starter. Source files are not copied.
+- **Environment** chooses between curated desktop environments and window managers. AwesomeWM uses native Lua output; other environments receive environment-specific setup guidance.
+- **Community** browses and searches curated Linux desktop builds by name, source, and features. Select a card to preview an editable starter. Source files are not copied.
 - **Widgets** lets you add, remove, enable, disable, and reorder the supported bar widgets.
 - **Keys** edits supported shortcuts for launching a terminal, closing a window, cycling layouts, and toggling floating.
 - **Appearance** configures colors, an optional wallpaper path, and the clock format.
+- **Wallpaper presets** includes 24 local SVG designs for in-browser preview and palette matching; custom absolute paths remain available for native desktop use.
 - **Profiles** saves, searches, sorts, imports, and exports named setups in this browser as versioned JSON profile files.
-- **Lua config** shows the generated file and lets you copy or download `rc.lua`.
+- **Configuration** shows generated native content or a setup guide and lets you copy or download it.
 - **Deploy** creates a self-contained Bash script with the current configuration embedded.
 - **Undo / Redo** keeps the latest 50 configuration edits reversible.
 - **Save setup** stores the current setup in this browser's local storage. Valid edits also
@@ -31,7 +33,7 @@ npm run dev
 - **Draft recovery** keeps a separate auto-saved recovery copy and offers to restore or discard it
   if it differs from the explicitly saved setup.
 
-The generated deployment script supports three modes:
+The optional AwesomeWM deployment script supports three modes:
 
 ```sh
 bash deploy-awesome-config.sh --dry-run       # validate without changing configuration files
@@ -41,13 +43,13 @@ bash deploy-awesome-config.sh --restore-latest # validate and confirm restoring 
 bash deploy-awesome-config.sh --restore-backup rc.lua.backup.TIMESTAMP.ID # restore a chosen backup
 ```
 
-The restore flow also backs up the current `rc.lua` before atomically restoring the selected backup. Installs and restores reject symlinked targets, take an exclusive deployment lock, and recheck the target before replacement. Neither operation restarts AwesomeWM. Review the script before running it.
+The restore flow backs up the current `rc.lua` before restoring a selected backup. Installs and restores reject symlinked targets, take an exclusive deployment lock, and recheck the target before replacement. They do not restart AwesomeWM.
 
 The terminal selector offers XTerm, Alacritty, Kitty, WezTerm, and GNOME Terminal. The in-browser preview renders the configured palette, bar placement, layout, gaps, terminal, and enabled widgets; it does not run AwesomeWM or third-party widgets. Clock examples use the browser's local time and supported strftime tokens. CPU and memory widgets use the standard Linux `top` and `free` commands. Review generated files and back up your existing configuration before installing.
 
-The widget catalog includes Linux battery, volume, and network integrations. Battery reads `/sys/class/power_supply`; volume requires `wpctl` from WirePlumber; network requires `nmcli` from NetworkManager. CPU and memory widgets use `top` and `free`. Date and clock widgets use AwesomeWM's built-in text clock. These integrations are optional and display placeholder values when their tools or devices are unavailable.
+The widget catalog includes Linux battery, volume, and network integrations. Battery reads `/sys/class/power_supply`; volume requires `wpctl` from WirePlumber; network requires `nmcli` from NetworkManager. CPU and memory widgets use `top` and `free`. These integrations are optional and display placeholder values when their tools or devices are unavailable. Native widget support is provided for AwesomeWM; other environments receive planning guidance.
 
-The initial catalog focuses on common AwesomeWM widgets and settings. It does not cover every AwesomeWM API or third-party widget yet.
+The catalog covers common desktop choices and widget concepts. It does not generate complete native configurations for every environment yet.
 
 ## Prebuilt source list
 

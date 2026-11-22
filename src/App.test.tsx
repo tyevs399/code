@@ -26,6 +26,16 @@ describe('configuration studio interactions', () => {
     expect(screen.getByText(/Linux Desktop Forge setup guide/)).toBeTruthy()
   })
 
+  it('offers environment extras and geek wallpaper presets', () => {
+    render(<App />)
+
+    expect(screen.getByText('Environment extras')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /03Appearance/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Deep Space/ }))
+
+    expect(screen.getByRole('button', { name: /Deep Space/ }).getAttribute('aria-pressed')).toBe('true')
+  })
+
   it('auto-saves valid draft changes and records the save timestamp', async () => {
     render(<App />)
 
@@ -35,7 +45,7 @@ describe('configuration studio interactions', () => {
       expect(screen.getByText('Draft saved')).toBeTruthy()
     }, { timeout: 1500 })
 
-    const recovery = JSON.parse(window.localStorage.getItem('awesome-config-studio-recovery') ?? '{}')
+    const recovery = JSON.parse(window.localStorage.getItem('linux-desktop-forge-recovery') ?? '{}')
     expect(recovery.config.layout).toBe('floating')
     expect(recovery.savedAt).toBeTruthy()
     expect(screen.getByText(/Last saved/)).toBeTruthy()

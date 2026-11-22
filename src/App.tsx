@@ -9,6 +9,7 @@ import {
   generateDesktopGuide,
   normalizeAwesomeConfig,
   validateConfig,
+  WALLPAPER_PRESETS,
   type AwesomeConfig,
   type KeybindingAction,
   type KeybindingConfig,
@@ -16,7 +17,12 @@ import {
   type WidgetConfig,
   type WidgetType,
 } from './model'
-import { DESKTOP_ENVIRONMENTS, type DesktopEnvironmentId } from './environments'
+import {
+  DESKTOP_ENVIRONMENTS,
+  getEnvironmentExtras,
+  getRecommendedWidgetTypes,
+  type DesktopEnvironmentId,
+} from './environments'
 import { createDeploymentScript, createEnvironmentSetupScript } from './deployment'
 import {
   PROFILE_STORE_VERSION,
@@ -135,7 +141,7 @@ const pageCopy: Record<Page, { eyebrow: string; title: string; description: stri
   deploy: {
     eyebrow: 'INSTALL WITH CARE',
     title: 'Deployment script',
-    description: 'Preview, install, or restore your AwesomeWM setup safely.',
+    description: 'Preview and export a native setup or guarded deployment where supported.',
   },
 }
 
@@ -170,7 +176,8 @@ async function copyText(text: string): Promise<void> {
 
 function loadSavedConfig(): { config: AwesomeConfig; notice: Notice } {
   try {
-    const stored = window.localStorage.getItem('awesome-config-studio')
+    const stored = window.localStorage.getItem('linux-desktop-forge-config')
+      ?? window.localStorage.getItem('awesome-config-studio')
     if (!stored) return { config: DEFAULT_CONFIG, notice: null }
 
     const parsed: unknown = JSON.parse(stored)
@@ -200,7 +207,8 @@ function loadSavedConfig(): { config: AwesomeConfig; notice: Notice } {
 
 function loadSavedProfiles(): { profiles: ConfigProfile[]; notice: Notice } {
   try {
-    const stored = window.localStorage.getItem('awesome-config-studio-profiles')
+    const stored = window.localStorage.getItem('linux-desktop-forge-profiles')
+      ?? window.localStorage.getItem('awesome-config-studio-profiles')
     if (!stored) return { profiles: [], notice: null }
 
     const parsed: unknown = JSON.parse(stored)
@@ -221,7 +229,8 @@ function loadSavedProfiles(): { profiles: ConfigProfile[]; notice: Notice } {
 
 function loadWidgetPresets(): WidgetPreset[] {
     try {
-      const stored = window.localStorage.getItem('awesome-config-studio-widget-presets')
+      const stored = window.localStorage.getItem('linux-desktop-forge-widget-presets')
+      ?? window.localStorage.getItem('awesome-config-studio-widget-presets')
       if (!stored) return []
       const parsed: unknown = JSON.parse(stored)
       if (!Array.isArray(parsed)) return []
@@ -247,7 +256,8 @@ function loadWidgetPresets(): WidgetPreset[] {
 
 function loadRecoveryDraft(): { config: AwesomeConfig; savedAt: Date } | null {
     try {
-      const stored = window.localStorage.getItem('awesome-config-studio-recovery')
+      const stored = window.localStorage.getItem('linux-desktop-forge-recovery')
+      ?? window.localStorage.getItem('awesome-config-studio-recovery')
       if (!stored) return null
       const parsed = JSON.parse(stored) as { config?: unknown; savedAt?: unknown }
       if (typeof parsed.savedAt !== 'string') return null
@@ -369,6 +379,7 @@ function describeConfigDifferences(current: AwesomeConfig, reference: AwesomeCon
     ['barPosition', 'Status bar position'],
     ['clockFormat', 'Clock format'],
     ['wallpaper', 'Wallpaper'],
+    ['wallpaperPreset', 'Wallpaper preset'],
     ['accentColor', 'Accent color'],
     ['backgroundColor', 'Background color'],
   ]
@@ -392,10 +403,13 @@ function App() {
       : 'awesomewm'
   })
   const environment = DESKTOP_ENVIRONMENTS.find((item) => item.id === environmentId) ?? DESKTOP_ENVIRONMENTS[0]
+  const environmentExtras = getEnvironmentExtras(environmentId)
+  const recommendedWidgets = getRecommendedWidgetTypes(environmentId)
   const [savedConfigJson, setSavedConfigJson] = useState(() => JSON.stringify(initialState.config))
   const [draftSavedConfigJson, setDraftSavedConfigJson] = useState(() => JSON.stringify(initialState.config))
   const [savedAt, setSavedAt] = useState(() => {
-    const stored = window.localStorage.getItem('awesome-config-studio-saved-at')
+    const stored = window.localStorage.getItem('linux-desktop-forge-saved-at')
+      ?? window.localStorage.getItem('awesome-config-studio-saved-at')
     if (!stored) return null
     const parsed = new Date(stored)
     return Number.isNaN(parsed.getTime()) ? null : parsed
@@ -496,10 +510,10 @@ function App() {
       try {
         const savedAtValue = new Date()
         window.localStorage.setItem(
-          'awesome-config-studio-recovery',
+          'linux-desktop-forge-recovery',
           JSON.stringify({ config, savedAt: savedAtValue.toISOString() }),
         )
-        window.localStorage.setItem('awesome-config-studio-saved-at', savedAtValue.toISOString())
+        window.localStorage.setItem('linux-desktop-forge-saved-at', savedAtValue.toISOString())
         setDraftSavedConfigJson(JSON.stringify(config))
         setSavedAt(savedAtValue)
       } catch (error) {
@@ -586,7 +600,7 @@ function App() {
 
     try {
       window.localStorage.setItem(
-        'awesome-config-studio-profiles',
+        'linux-desktop-forge-profiles',
         JSON.stringify({ version: PROFILE_STORE_VERSION, profiles: nextProfiles }),
       )
       setProfiles(nextProfiles)
@@ -672,7 +686,7 @@ function App() {
     try {
       const text = serializeProfile(profileName, config)
       const filename = profileName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      downloadTextFile(`${filename || 'awesome-profile'}.awesomewm.json`, text)
+      downloadTextFile(`${filename || 'linux-desktop-profile'}.json`, text)
       setNotice({ kind: 'success', message: `Profile "${profileName.trim()}" exported.` })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
@@ -784,7 +798,7 @@ function App() {
 
   function persistWidgetPresets(nextPresets: WidgetPreset[]) {
     try {
-      window.localStorage.setItem('awesome-config-studio-widget-presets', JSON.stringify(nextPresets))
+      window.localStorage.setItem('linux-desktop-forge-widget-presets', JSON.stringify(nextPresets))
       setWidgetPresets(nextPresets)
       return true
     } catch (error) {
@@ -839,8 +853,9 @@ function App() {
 
     try {
       const savedAtValue = new Date()
-      window.localStorage.setItem('awesome-config-studio', JSON.stringify(config))
-      window.localStorage.setItem('awesome-config-studio-saved-at', savedAtValue.toISOString())
+      window.localStorage.setItem('linux-desktop-forge-config', JSON.stringify(config))
+      window.localStorage.setItem('linux-desktop-forge-saved-at', savedAtValue.toISOString())
+      window.localStorage.removeItem('linux-desktop-forge-recovery')
       window.localStorage.removeItem('awesome-config-studio-recovery')
       setSavedConfigJson(JSON.stringify(config))
       setDraftSavedConfigJson(JSON.stringify(config))
@@ -861,6 +876,7 @@ function App() {
   }
 
   function discardRecoveryDraft() {
+    window.localStorage.removeItem('linux-desktop-forge-recovery')
     window.localStorage.removeItem('awesome-config-studio-recovery')
     setRecoveryDraft(null)
     setNotice({ kind: 'success', message: 'Recovered draft discarded.' })
@@ -1125,6 +1141,22 @@ function App() {
                 ))}
               </select>
               <p className="field-hint">{environment.description}</p>
+              <div className="environment-capabilities">
+                <div className="environment-capabilities-heading">
+                  <strong>Environment extras</strong>
+                  <span>{environmentExtras.length} capabilities</span>
+                </div>
+                <div className="environment-extra-grid">
+                  {environmentExtras.slice(0, 6).map((extra) => (
+                    <span className={`environment-extra environment-extra-${extra.status}`} key={extra.id} title={extra.description}>
+                      {extra.name}
+                    </span>
+                  ))}
+                </div>
+                <p className="field-hint">
+                  Recommended: {recommendedWidgets.slice(0, 5).join(' · ')}
+                </p>
+              </div>
 
               <label className="field-label" htmlFor="terminal">Terminal emulator</label>
               <select
@@ -1335,14 +1367,14 @@ function App() {
                 Popularity is based on GitHub stars from a repository search snapshot. Community scripts are not ranked.
               </p>
               <p className="preset-ranking-note">
-                This is a live browser rendering of supported settings, not a running AwesomeWM session. It cannot load local wallpaper files or source-project widgets.
+                This is a live browser rendering of supported settings, not a running desktop session. It cannot load local wallpaper files or source-project widgets.
               </p>
             </section>
 
             <section className="settings-card preset-details-card">
               <div className="card-heading">
                 <div>
-                  <div className="section-kicker">CURATED AWESOMEWM BUILDS</div>
+                  <div className="section-kicker">CURATED LINUX DESKTOP BUILDS</div>
                   <h2>Review starter details</h2>
                 </div>
                 <span className="step-number">{PREBUILT_PRESETS.length.toString().padStart(2, '0')}</span>
@@ -1527,7 +1559,11 @@ function App() {
                   </div>
                   <span className="step-number">02</span>
                 </div>
-                <p className="card-intro">A starter set of AwesomeWM widgets. More integrations can be added as the catalog grows.</p>
+                <p className="card-intro">
+                  {environmentId === 'awesomewm'
+                    ? 'A starter set of native AwesomeWM widgets and Linux system integrations.'
+                    : 'A shared set of Linux widget ideas and system integrations for planning your desktop.'}
+                </p>
                 <div className="widget-catalog">
                   {(Object.entries(WIDGET_CATALOG) as [WidgetType, (typeof WIDGET_CATALOG)[WidgetType]][]).map(([type, item]) => (
                     <article className="catalog-widget" key={type}>
@@ -1567,7 +1603,9 @@ function App() {
               </div>
               <p className="card-intro">
                 Each shortcut uses <kbd>{config.modkey}</kbd> from Desktop settings, with optional Shift.
-                Key names are AwesomeWM keysyms such as Return, F1, or space.
+                {environmentId === 'awesomewm'
+                  ? ' Key names use AwesomeWM keysyms such as Return, F1, or space.'
+                  : ' Key names may use native environment syntax; common examples include Return, F1, and space.'}
               </p>
               {config.keybindings.length === 0 ? (
                 <div className="empty-state">No shortcuts yet. Add one of the supported actions below.</div>
@@ -1657,15 +1695,59 @@ function App() {
                 onChange={(value) => updateConfig('backgroundColor', value)}
                 value={config.backgroundColor}
               />
+              <div className="field-label field-label-spaced">Geek wallpaper presets</div>
+              <div aria-label="Geek wallpaper presets" className="wallpaper-preset-grid" role="group">
+                {WALLPAPER_PRESETS.map((preset) => (
+                  <button
+                    aria-pressed={config.wallpaperPreset === preset.id}
+                    className={`wallpaper-preset ${config.wallpaperPreset === preset.id ? 'selected' : ''}`}
+                    key={preset.id}
+                    onClick={() => commitConfig((current) => ({
+                      ...current,
+                      wallpaper: '',
+                      wallpaperPreset: preset.id,
+                      accentColor: preset.accentColor,
+                      backgroundColor: preset.backgroundColor,
+                    }))}
+                    style={{
+                      backgroundImage: `url('/wallpapers/${preset.id}.svg')`,
+                      backgroundPosition: 'center',
+                      backgroundSize: 'cover',
+                    }}
+                    type="button"
+                  >
+                    <span>
+                      <strong>{preset.name}</strong>
+                      <small>{preset.tags.join(' · ')}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {config.wallpaperPreset && (
+                <button
+                  className="text-link"
+                  onClick={() => updateConfig('wallpaperPreset', '')}
+                  type="button"
+                >
+                  Clear wallpaper preset <span>×</span>
+                </button>
+              )}
+              <p className="field-hint">
+                Presets use local 1920×1080 SVG assets for the preview and update the palette. Use a custom absolute path to apply a real wallpaper in the native environment.
+              </p>
               <label className="field-label field-label-spaced" htmlFor="wallpaper">Wallpaper path</label>
               <input
                 id="wallpaper"
-                onChange={(event) => updateConfig('wallpaper', event.target.value)}
+                onChange={(event) => commitConfig((current) => ({
+                  ...current,
+                  wallpaper: event.target.value,
+                  wallpaperPreset: '',
+                }))}
                 placeholder="/home/you/Pictures/wallpaper.jpg"
                 spellCheck={false}
                 value={config.wallpaper}
               />
-              <p className="field-hint">Optional. Use an absolute path on the machine running AwesomeWM.</p>
+              <p className="field-hint">Optional. Use an absolute path on the machine running {environment.name}.</p>
               <label className="field-label field-label-spaced" htmlFor="clock-format">Clock format</label>
               <input
                 id="clock-format"
@@ -1673,13 +1755,27 @@ function App() {
                 spellCheck={false}
                 value={config.clockFormat}
               />
-              <p className="field-hint">Uses Lua's strftime-style clock tokens, e.g. %a %d %b  %H:%M.</p>
+              <p className="field-hint">
+                {environmentId === 'awesomewm'
+                  ? "Uses Lua's strftime-style clock tokens, e.g. %a %d %b  %H:%M."
+                  : 'A conventional strftime-style format for clocks that support it.'}
+              </p>
             </section>
 
             <section className="appearance-preview-card">
               <div className="section-kicker">PALETTE PREVIEW</div>
               <h2>A little more you.</h2>
-              <div className="palette-desktop" style={{ backgroundColor: config.backgroundColor }}>
+              <div
+                className="palette-desktop"
+                style={{
+                  backgroundImage: config.wallpaperPreset
+                    ? `url('/wallpapers/${config.wallpaperPreset}.svg')`
+                    : undefined,
+                  backgroundColor: config.backgroundColor,
+                  backgroundPosition: 'center',
+                  backgroundSize: 'cover',
+                }}
+              >
                 <div className="palette-wallpaper">
                   <div className="palette-orbit orbit-one" />
                   <div className="palette-orbit orbit-two" />
@@ -1699,7 +1795,11 @@ function App() {
                 <div><span style={{ backgroundColor: config.backgroundColor }} /><small>BASE</small><code>{config.backgroundColor}</code></div>
                 <div><span style={{ backgroundColor: config.accentColor }} /><small>ACCENT</small><code>{config.accentColor}</code></div>
               </div>
-              <p className="palette-caption">Colors are applied to AwesomeWM's default theme and generated rc.lua.</p>
+              <p className="palette-caption">
+                {environmentId === 'awesomewm'
+                  ? "Colors are applied to AwesomeWM's default theme and generated rc.lua."
+                  : `These colors describe a palette to apply through ${environment.name}'s native appearance settings.`}
+              </p>
             </section>
           </div>
         )}
@@ -2022,13 +2122,18 @@ function DesktopPreview({ config }: { config: AwesomeConfig }) {
   const right = enabled.filter((widget) => WIDGET_CATALOG[widget.type].region === 'right')
   const accent = config.accentColor
   const background = config.backgroundColor
+  const wallpaperPreset = WALLPAPER_PRESETS.find((preset) => preset.id === config.wallpaperPreset)
 
   return (
     <div className="monitor">
       <div
         className={`mock-desktop ${config.barPosition === 'bottom' ? 'bar-at-bottom' : ''}`}
         style={{
-          background: `radial-gradient(ellipse at 74% 77%, ${accent}40 0%, transparent 42%), linear-gradient(132deg, ${background}, ${background}ee)`,
+          backgroundImage: wallpaperPreset
+            ? `url('/wallpapers/${wallpaperPreset.id}.svg')`
+            : `radial-gradient(ellipse at 74% 77%, ${accent}40 0%, transparent 42%), linear-gradient(132deg, ${background}, ${background}ee)`,
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
           borderColor: `${accent}66`,
         }}
       >

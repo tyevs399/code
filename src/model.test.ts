@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CONFIG,
   TERMINAL_OPTIONS,
+  WALLPAPER_PRESETS,
   generateLua,
   generateDesktopGuide,
   isAwesomeConfig,
@@ -12,6 +13,18 @@ import {
 import { DESKTOP_ENVIRONMENTS } from './environments'
 
 describe('AwesomeWM config model', () => {
+  it('includes high-quality wallpaper presets and normalizes legacy configs', () => {
+    expect(WALLPAPER_PRESETS.length).toBe(24)
+    expect(normalizeAwesomeConfig({ ...DEFAULT_CONFIG, wallpaperPreset: undefined })?.wallpaperPreset).toBe('')
+  })
+
+  it('offers a broad Linux desktop environment catalog', () => {
+    expect(DESKTOP_ENVIRONMENTS.length).toBeGreaterThanOrEqual(25)
+    expect(DESKTOP_ENVIRONMENTS.map((environment) => environment.id)).toEqual(
+      expect.arrayContaining(['niri', 'xmonad', 'qtile', 'wayfire', 'openbox', 'lxqt', 'pantheon', 'phosh']),
+    )
+  })
+
   it('generates a review guide for non-Awesome desktop environments', () => {
     const sway = DESKTOP_ENVIRONMENTS.find((environment) => environment.id === 'sway')
     expect(sway).toBeDefined()
@@ -58,7 +71,7 @@ describe('AwesomeWM config model', () => {
 
     expect(validateConfig(invalidConfig)).toEqual(
       expect.arrayContaining([
-        'Modifier key must be a single AwesomeWM key name, such as Mod4.',
+        'Modifier key must be a single key name, such as Mod4 or Super.',
         'Window gaps must be a whole number from 0 to 40.',
         'Accent color must be a six-digit hex color.',
         'Widget IDs must be unique.',
